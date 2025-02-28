@@ -1,7 +1,7 @@
 # Introduction
 Instructions on how to set up `nginx` as a reverse proxy on the public internet providing HTTPS access to local HTTP servers on your LAN and using client certificates to provide security without the need for passwords.
 
-For this you will need a Linux (assumed Ubuntu) machine on the public internet, e.g. the kind provided by [Digital Ocean](https://www.digitalocean.com/), with the `ssh` service running and open to the internet (usually on port 22) by setting `ufw` (if running) to allow incoming TCP access on that port _and_ allowing incoming TCP connections on that port of the machine's network fire wall.
+For this you will need a Linux (assumed Ubuntu) machine on the public internet, e.g. the kind provided by [Digital Ocean](https://www.digitalocean.com/), with the `ssh` service running and open to the internet.
 
 **ADVICE: I AM NO SECURITY EXPERT, THIS SETUP IS SUFFICIENTLY SECURE/ROBUST FOR MY PURPOSES, YOU MUST TAKE RESPONSIBILITY FOR YOUR OWN DECISIONS WHERE INTERNET SECURITY IS CONCERNED.**
 
