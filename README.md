@@ -699,6 +699,16 @@ The exposed port will need to be different to the end-of-tunnel port (since both
 
 - Note: if you end up doing everything this way you may be able to close ports 80 and 443 on the network firewall of the machine on the public internet once more (unless, of course, you need the ports to be open for Cerbot certificate renewal).
 
+## Other Hints
+- If your HTTP server relies on websockets, you may need to add the following to the `location` area of your `nginx` site configuration file:
+
+  ```
+                  # WebSocket support
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection "upgrade";
+  ```
+
 # Requesting Access
 The instructions that might be provided to someone who would like to access `https://remote_machine` are as follows.
 
