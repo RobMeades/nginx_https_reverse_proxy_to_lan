@@ -12,7 +12,7 @@ The steps laid out below are:
   - obtain a server certificate in order to serve HTTPS,
   - create out-bound `ssh` tunnels from HTTP servers that are to be exposed,
   - set up as a local certificate authority,
-  - grant clients access to the HTTP servers using certificates.
+  - grant browsers access to the HTTP servers by issuing client certificates.
 
 Throughout these instructions:
   - where you see `remote_machine`, replace that with the address of the machine on the public internet (domain name when available, otherwise IP address),
@@ -21,7 +21,7 @@ Throughout these instructions:
 # Secure The Machine That Is On The Public internet
 Before you start, make sure that the machine on the public internet is secured.  For instance, only one port, usually port 22 (so that you can get at it with `ssh`) should be exposed through its firewall.
 
-- If you are starting a new machine from scratch, while logged in as `root`, create a user and switch off `root` log-in with:
+- If you are starting a new machine from scratch, while logged in as `root`, create a user and switch off `root` log-in as follows, noting that it is worth using a particularly good/unique password for this user since it will be relatively powerful:
 
   ```
   adduser username_main
@@ -57,13 +57,15 @@ Before you start, make sure that the machine on the public internet is secured. 
 
   ...where `username` is `username_main` as created above or, for machines that will expose HTTP servers, `username_tunnel`.  Accept the identity of the host if prompted to do so.
 
-- Once you have done this for all of the client machines, switch off password-based SSH access on the machine that is on the public internet by editing the file `/etc/ssh/sshd_config` to change `#PasswordAuthentication yes` to `PasswordAuthentication no`, i.e. remove the `#` and change `yes` to `no`.  Restart the SSH server with `sudo systemctl restart ssh` and make sure that this has worked by trying to `ssh` from a client machine with user name and password: if this still works, check that there isn't an override configuration file in the directory `/etc/ssh/sshd_config.d` that is switching password-based SSH access on again.
+- Once you have done this for all of the client machines, switch off password-based SSH access on the machine that is on the public internet by editing the file `/etc/ssh/sshd_config` to change `#PasswordAuthentication yes` to `PasswordAuthentication no`, i.e. remove the `#` and change `yes` to `no`.  Enter `sudo systemctl daemon-reload` to load the new configuration then restart the SSH server with `sudo systemctl restart ssh` and make sure that this has worked by trying to `ssh` from a client machine with user name and password: if using a password still works, check that there isn't an override configuration file in the directory `/etc/ssh/sshd_config.d` that is switching password-based SSH access on again.
 
   Note: if you need to add a new `ssh` key _after_ you have switched-off password-based `ssh` access you will need to use a client machine that _is_ able to access the machine on the public internet to manually add the contents of each of the `.pub` files (each will be a single line) to the file `.ssh/authorized_keys`, either off `username_main`'s home directory or off `username_tunnel`'s home directory; cutting and pasting it will be fine, it is text.
 
   Note: if you want to use `PuTTY` on a client machine you will need to convert the private key into a `.ppk` file using `PuTTYgen` on that machine, see advice on the internet for how to do this.
 
 - Check if you have an active firewall with `sudo ufw status`: it is up to you whether you use one or not.  In my case, I had a single machine on the public internet and so there was no value in enabling `ufw`, I could just control access via the network firewall of the same machine.  If you _do_ choose to activate `ufw`, make sure that, when the instructions below indicate that a port should be opened for incoming TCP connections, you do so in `ufw` as well as on the network firewall.
+
+- Decide on the port you will use for `ssh` access: you may leave it as port 22 or you may choose a different port: open that port for in-bound TCP access on the network firewall (and in `ufw` if it is active), edit `/etc/ssh/sshd_config`, remove the `#` from the line `#port 22`, change the port number, `sudo systemctl daemon-reload` to load the new configuration and then restart the `ssh` service with `sudo systemctl restart ssh`; if your able to `ssh` back in again, remove in-bound TCP access on port 22.  You will then need to add `-p <portnumber>` to all of the `ssh` and `autossh` command-lines below.
 
 # Secure Your HTTP Servers
 We will only be exposing the HTTP servers to browsers that have installed a client certificate which we have consciously chosen to provide but it is still worth making sure that the HTTP servers are as secure as possible in case the client certificate and its key is somehow spread to a bad actor.  Some [tips for Apache2](https://help.dreamhost.com/hc/en-us/articles/226327268-The-most-important-steps-to-take-to-make-an-Apache-server-more-secure):
@@ -235,7 +237,7 @@ Note: this is done in a few steps and with an `openssl` configuration file so as
 
   Note: if you want to run `nginx -t` afterwards, to check the syntax of your `nginx` configuration, do it with `sudo` so that `nginx -t` is able to read the key file.
 
-- Create a file named `remote_machine.cnf` with the following contents (not forgetting to replace `remote_machine` with the domain name and modifying any other of the `req_distinguished_name` parameter as appropriate):
+- Create a file named `remote_machine.cnf` with the following contents (not forgetting to replace `remote_machine` with the domain name and modifying any other of the `req_distinguished_name` parameters as appropriate):
 
   ```
   [ req ]
@@ -298,23 +300,23 @@ Note: this is done in a few steps and with an `openssl` configuration file so as
 
   ...giving an e-mail address that terminates with you when prompted.
 
-- If you have only TXT records and are unable to script updating a TXT record (e.g. a [noip](https://www.noip.com/) free account):
+- If you have only TXT records and are unable to script updating a TXT record (e.g. [noip](https://www.noip.com/)):
 
   - Log-in to [noip](https://www.noip.com/) or wherever, and be ready to add a new TXT record.
 
   - Obtain a private key and get that signed by a CA (Let's Encrypt) by running Certbot with:
 
-  ```
-  sudo certbot -v /etc/letsencrypt:/etc/letsencrypt -v /var/lib/letsencrypt:/var/lib/letsencrypt certbot/certbot certonly --manual --debug-challenges --preferred-challenges dns -d remote_machine -d www.remote_machine
-  ```
+    ```
+    sudo certbot -v /etc/letsencrypt:/etc/letsencrypt -v /var/lib/letsencrypt:/var/lib/letsencrypt certbot/certbot certonly --manual --debug-challenges --preferred-challenges dns -d remote_machine -d www.remote_machine
+    ```
 
-  ...giving an e-mail address that terminates with you and `remote_machine` as the domain if prompted.
+    ...giving an e-mail address that terminates with you and `remote_machine` as the domain if prompted.
 
-  - You will be asked to add a TXT record to the DNS record inside [noip](https://www.noip.com/) or wherever, with an `_acme-challenge` sub-domain (i.e. prefix) and with the value being a random text string that Let's Encrypt will check.  Do this and confirm to `CertBot` that you have done so.
+  - You will be asked to add a TXT record to the DNS record, inside [noip](https://www.noip.com/) or wherever, with an `_acme-challenge` sub-domain (i.e. prefix) and with the value being a random text string that Let's Encrypt will check.  Do this and confirm to `CertBot` that you have done so.
 
 - The private key and signed certificate will have been placed into `/etc/letsencrypt/live/remote_machine`.
 
-- You will be sent an e-mail a few weeks before the certificate (3 months validity) expires; if you were able to create the certifiace in the first place without manual intervention, you may renew it automatically by scripting the following command to run, say, once a day on the machine that is on the public internet:
+- You will be sent an e-mail a few weeks before the certificate (3 months validity) expires; if you were able to create the certificate in the first place without manual intervention, you may renew it automatically by scripting the following command to run, say, once a day on the machine that is on the public internet:
 
   ```
   sudo certbot -v /etc/letsencrypt:/etc/letsencrypt -v /var/lib/letsencrypt:/var/lib/letsencrypt -p 80:80 certbot/certbot renew
@@ -362,7 +364,7 @@ Linux does not permit a machine to forward ports lower in number than 1024, that
 
 This tells the SSH server on `remote_machine` (the machine on the public internet) to send any packets headed for port 8888 to the machine where you ran the above command, port 80. `-N` means don't do an interactive login.
 
-Pick a different port for each of the local HTTP servers you want to expose (or take advantage of `nginx` is ability to re-map paths) and Bob is your mother's brother.
+Pick a different port for each of the local HTTP servers you want to expose (or take advantage of `nginx`'s ability to re-map paths) and Bob is your mother's brother.
 
 ## Implementation
 
@@ -423,7 +425,7 @@ Do the following for each of the local machines running an HTTP server that you 
 
   ...replacing `8888` with your chosen port number; the `ssh_private_key` is the one you created on this machine right at the start, when securing things.  This will cause the server to send "alive" messages every 30 seconds and for the tunnel to be restarted after three such messages have gone missing.
 
-- Assuming that works, start `autossh` with a `systemd` file named something like `/etc/systemd/system/tunnel-http.service` containing something like the following:
+- Assuming that worked, CTRL-C and then start `autossh` with a `systemd` file named something like `/etc/systemd/system/tunnel-http.service` containing something like the following:
 
   ```
   [Unit]
@@ -453,7 +455,7 @@ Do the following for each of the local machines running an HTTP server that you 
   sudo systemctl status tunnel-http
   ```
 
-  ...shows an active service; you might also want to run `netstat -tulpn` on the machine on the public internet and check that its SSH server is now listening on the port you have chosen.  Assuming all is good, enable the service to start at boot with:
+  ...shows an active service; you might also want to run `netstat -tulpn` on the machine on the public internet and check that its `ssh` server is now listening on the port you have chosen.  Assuming all is good, enable the service to start at boot with:
 
   ```
   sudo systemctl enable tunnel-http.service
@@ -514,7 +516,7 @@ Perform the following actions on the machine that is on the public internet.
   emailAddress            = supplied
   ```
 
-- Generate a master key for your Certificate Authority, not password protected as `ssl`/`nginx` will need to read it:
+- Generate a password-protected master key for your Certificate Authority:
 
   ```
   sudo openssl genrsa -out /etc/ssl/private/ca.key 4096
@@ -556,10 +558,10 @@ Now that we have the ability to generate client certificates, we can configure `
 - Open a browser on your local machine and navigate to `https://remote_machine`; you should now see "400 Bad Request: no required SSL certificate was sent".
 
 # Giving Access
-The steps required for setup of each client that wishes to access `https://remote_machine` are set out below.  Generation of the key/Certificate Signing Request may be done either by the user (typically a Linux user will know how to do this) or you may do it yourself (which would be necessary for mobile phones and might be an easier option for Windows users since then there is no need to install OpenSSL on their machine).  Getting the user to do it is preferred as that way their private key never leaves their device.
+The steps required for setup of each client that wishes to access `https://remote_machine` are set out below.  Generation of the key/CSR may be done either by the user (typically a Linux user will know how to do this) or you may do it yourself (which would be necessary for mobile phones and might be an easier option for Windows users since then there is no need to install OpenSSL on their machine).  Getting the user to do it is preferred as that way their private key never leaves their device.
 
 ## "User Generates Private Key" Method
-Use this method if the user answers yes to the question "are you OK to run OpenSSL to generate private keys and signing requests?"; if so, make sure that, when they send you their Certificate Signing Request (see below), they populate the `Organisation Name` with the name of their device and the `E-mail Address` field with their e-mail address.
+Use this method if the user answers yes to the question "are you OK to run OpenSSL to generate private keys and signing requests?"; if so, make sure that, when they send you their certificate signing request (see below), they populate the `Organisation Name` with the name of their device and the `E-mail Address` field with their e-mail address.
 
 ### Generation
 - Ask the user to install [OpenSSL](https://www.ibm.com/docs/en/ts4500-tape-library?topic=openssl-installing) on the device they wish to access the automated test system from, if they've not done so already,
@@ -572,7 +574,7 @@ Use this method if the user answers yes to the question "are you OK to run OpenS
 
 - Tell them to keep the `remote_machine.key` file somewhere safe and NEVER to reveal it to anyone.
 
-- Ask the user to generate a Certificate Signing Request for this private key with the command below and then e-mail the generated `.csr` file to you for processing; they should replace `devicename` with a string representing their device (e.g. for me it would be `RobLaptop`) and, so that it is possible to manage things, they should enter the same string in the `Organisation Name` field of the CSR and they should populate the `E-mail Address` field correctly in the CSR (everything else may be left blank by pressing `.` and then `<enter>`):
+- Ask the user to generate a certificate signing request for this private key with the command below and then e-mail the generated `.csr` file to you for processing; they should replace `devicename` with a string representing their device (e.g. for me it would be `RobLaptop`) and, so that it is possible to manage things, they should enter the same string in the `Organisation Name` field of the CSR and they should populate the `E-mail Address` field correctly in the CSR (everything else may be left blank by pressing `.` and then `<enter>`):
 
   ```
   sudo openssl req -new -key remote_machine.key -out remote_machine.devicename.csr
@@ -584,7 +586,7 @@ Use this method if the user answers yes to the question "are you OK to run OpenS
   sudo openssl ca -in /etc/ssl/csr/remote_machine.devicename.csr -config /etc/pki/tls/openssl.cnf
   ```
 
-  Note: keeping the `.csr` file in this way means that a new certificate can be generated from the same Certificate Signing Request file when the previous one expires in 365 days.
+  Note: keeping the `.csr` file in this way means that a new certificate can be generated from the same CSR file when the previous one expires in 365 days.
 
 - When done, a new file, e.g. `01.pem`, should appear in the `/etc/ssl/newcerts/` directory: e-mail this file, renamed to `remote_machine.devicename.crt`, **PLUS** `remote_machine.ca.crt` back to the user; it doesn't matter if these files go astray, they will only work for the user that has the private key.
 
@@ -596,7 +598,7 @@ Use this method if the user answers yes to the question "are you OK to run OpenS
   sudo systemctl restart nginx
   ```
 
-- The default OpenSSL configuration file will not allow you to generate a new certificate for one which already exists in the index.  If a client certificate is about to expire and you want to generate a new one to send to the user _before_ the one they have expires, you will need to edit ` /etc/ssl/CA/index.txt.attr` (create it if it doesn't exist) to have the line `unique_subject = no` in it.
+- The default OpenSSL configuration file will not allow you to generate a new certificate for one which already exists in the index.  If a client certificate is about to expire and you want to generate a new one to send to the user _before_ the one they have expires, you will need to edit `/etc/ssl/CA/index.txt.attr` (create it if it doesn't exist) to have the line `unique_subject = no` in it.
 
 - If a client certificate has expired, run the following command:
 
@@ -617,9 +619,9 @@ These steps are carried out by the user on the device where they generated their
 
 - If the user is running Linux, they should install this bundle in Firefox by going to `Settings`, searching for `Certificates`, pressing `View Certificates`, selecting the `Your Certificates` tab, then `Import` and selecting the `.pfx` file.  Then restart FireFox and try again.
 
-- If the user is running Windows they should double-click the `.pfx` file, select `Current User` in the dialog box that pops up, confirm the file to import, enter the password for the `.pfx` file, allow the wizard to decide where to put the certificates and press `OK` to add the lot.
+- If the user is running Windows they should double-click the `.pfx` file, select `Current User` in the dialog box that pops up, confirm the file to import, enter the password for the `.pfx` file, allow the wizard to decide where to put the certificates and press `OK` to add the lot.  They _must_ then delete the `.pfx` file from any place it might have been stored (disk, e-mail with attachment, etc.)
 
-- If the user has an Android phone they should go to  `Settings` > `Security and privacy` >  `More security and privacy` > `Encryption and credentials` > `Install a certificate` > `VPN and app user certificate`, select the `.pfx` file, enter the password, and install it.
+- If the user has an Android phone they should go to  `Settings` > `Security and privacy` >  `More security and privacy` > `Encryption and credentials` > `Install a certificate` > `VPN and app user certificate`, select the `.pfx` file, enter the password, and install it.  They _must_ then delete the `.pfx` file from any place it might have been stored (disk, e-mail with attachment, etc.)
 
 - Open a browser and make an HTTPS connection to the `https://remote_machine`; it should prompt for the certificate to use: chose the one it offers, which will be the one just installed, and then the proper HTML page should appear.
 
@@ -630,7 +632,7 @@ Use this method if the user is not able to generate a private key on their devic
 
 - Ask them to e-mail their `devicename` to you.
 
-- Generate a password-protected private key for that user, a Certificate Signing Request to go with it, and then generate the actual certificate, with something like (filling in `devicename` in the `Organisation Name` field and their e-mail address in the `E-mail Address` field of the Certificate Signing Request, leaving the rest empty by just entering `.`):
+- Generate a password-protected private key for that user, a certificate signing request to go with it, and then generate the actual certificate, with something like (filling in `devicename` in the `Organisation Name` field and their e-mail address in the `E-mail Address` field of the certificate signing request, leaving the rest empty by just entering `.`):
 
   ```
   openssl genrsa -des3 -out devicename.key 4096
@@ -658,7 +660,7 @@ Both approaches are described below: use the one that fits.
 
 All of the actions below are carried out on the machine that is on the public internet.
 
-In both cases, when done, restart `nginx` with `sudo systemctl restart nginx`, open a browser and make an HTTPS connection to the path you have told `nginx` to listen for and you should end up at the HTTP server at the other end of the given tunnel.  If you get "page not found", check that the port is listed as listening port on the machine that is on the public internet with `netstat -tulpn`.  If it is not check the status of the tunnel on the client machine with something like `sudo systemctl status tunnel-http`.
+In both cases, when done, restart `nginx` with `sudo systemctl restart nginx`, open a browser and make an HTTPS connection to the path you have told `nginx` to listen for and you should end up at the HTTP server at the other end of the given tunnel.  If you get "page not found", use `netstat -tulpn` to check that the port is listed as a TCP listening port on the machine that is on the public internet.  If it is not check the status of the tunnel on the client machine with something like `sudo systemctl status tunnel-http`.
 
 ## By Path
 Assuming that the end of a tunnel is on port 8888 and you want to end up at the root of that HTTP page heirarchy:
@@ -700,7 +702,7 @@ The exposed port will need to be different to the end-of-tunnel port (since both
 - Note: if you end up doing everything this way you may be able to close ports 80 and 443 on the network firewall of the machine on the public internet once more (unless, of course, you need the ports to be open for Cerbot certificate renewal).
 
 ## Other Hints
-- If your HTTP server relies on websockets, you may need to add the following to the `location` area of your `nginx` site configuration file:
+- For an HTTP server that relies on websockets, you may need to add the following to the `location` area of that `nginx` site configuration file:
 
   ```
                   # WebSocket support
@@ -713,7 +715,7 @@ The exposed port will need to be different to the end-of-tunnel port (since both
 The instructions that might be provided to someone who would like to access `https://remote_machine` are as follows.
 
 ## Arranging Access For A Linux Machine
-Please generate a key and a Certificate Signing Request using OpenSSL with:
+Please generate a key and a certificate signing request using OpenSSL with:
 
   ```
   openssl genrsa -des3 -out remote_machine.key 4096
