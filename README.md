@@ -21,7 +21,7 @@ Throughout these instructions:
 # Secure The Machine That Is On The Public internet
 Before you start, make sure that the machine on the public internet is secured.  For instance, only one port, usually port 22 (so that you can get at it with `ssh`) should be exposed through its firewall.
 
-- If you are starting a new machine from scratch, while logged in as `root`, create a user and switch off `root` log-in with:
+- If you are starting a new machine from scratch, while logged in as `root`, create a user and switch off `root` log-in as follows, noting that it is worth using a particularly good/unique password for this user since it will be relatively powerful:
 
   ```
   adduser username_main
@@ -64,6 +64,8 @@ Before you start, make sure that the machine on the public internet is secured. 
   Note: if you want to use `PuTTY` on a client machine you will need to convert the private key into a `.ppk` file using `PuTTYgen` on that machine, see advice on the internet for how to do this.
 
 - Check if you have an active firewall with `sudo ufw status`: it is up to you whether you use one or not.  In my case, I had a single machine on the public internet and so there was no value in enabling `ufw`, I could just control access via the network firewall of the same machine.  If you _do_ choose to activate `ufw`, make sure that, when the instructions below indicate that a port should be opened for incoming TCP connections, you do so in `ufw` as well as on the network firewall.
+
+- Decide on the port you will use for `ssh` access: you may leave it as port 22 or you may choose a different port: open that port for in-bound TCP access on the network firewall (and in `ufw` if it is active), edit `/etc/ssh/sshd_config`, remove the `#` from the line `#port 22`, change the port number, `sudo daemon-reload` to load the new configuration and then restart the `ssh` service with `sudo systemctl restart ssh`; log back in again and remove in-bound TCP access on port 22.  You will then need to add `-p <portnumber>` to all of the `ssh` and `autossh` command-lines below.
 
 # Secure Your HTTP Servers
 We will only be exposing the HTTP servers to browsers that have installed a client certificate which we have consciously chosen to provide but it is still worth making sure that the HTTP servers are as secure as possible in case the client certificate and its key is somehow spread to a bad actor.  Some [tips for Apache2](https://help.dreamhost.com/hc/en-us/articles/226327268-The-most-important-steps-to-take-to-make-an-Apache-server-more-secure):
@@ -617,9 +619,9 @@ These steps are carried out by the user on the device where they generated their
 
 - If the user is running Linux, they should install this bundle in Firefox by going to `Settings`, searching for `Certificates`, pressing `View Certificates`, selecting the `Your Certificates` tab, then `Import` and selecting the `.pfx` file.  Then restart FireFox and try again.
 
-- If the user is running Windows they should double-click the `.pfx` file, select `Current User` in the dialog box that pops up, confirm the file to import, enter the password for the `.pfx` file, allow the wizard to decide where to put the certificates and press `OK` to add the lot.
+- If the user is running Windows they should double-click the `.pfx` file, select `Current User` in the dialog box that pops up, confirm the file to import, enter the password for the `.pfx` file, allow the wizard to decide where to put the certificates and press `OK` to add the lot.  They _must_ then delete the `.pfx` file from any place it might have been stored (disk, e-mail with attachment, etc.)
 
-- If the user has an Android phone they should go to  `Settings` > `Security and privacy` >  `More security and privacy` > `Encryption and credentials` > `Install a certificate` > `VPN and app user certificate`, select the `.pfx` file, enter the password, and install it.
+- If the user has an Android phone they should go to  `Settings` > `Security and privacy` >  `More security and privacy` > `Encryption and credentials` > `Install a certificate` > `VPN and app user certificate`, select the `.pfx` file, enter the password, and install it.  They _must_ then delete the `.pfx` file from any place it might have been stored (disk, e-mail with attachment, etc.)
 
 - Open a browser and make an HTTPS connection to the `https://remote_machine`; it should prompt for the certificate to use: chose the one it offers, which will be the one just installed, and then the proper HTML page should appear.
 
