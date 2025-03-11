@@ -487,15 +487,14 @@ Perform the following actions on the machine that is on the public internet.
 - Create `/etc/pki/tls/openssl.cnf` and populate it with the following, not forgetting to replace `remote_machine` with the domain name of the machine on the public internet:
 
   ```
-  [ default ]
+  [default]
   dir         = /etc/ssl                                     # Where everything SSLish kept
   default_md  = sha256                                       # MD to use
 
-  [ ca ]
+  [ca]
   default_ca  = default_ca                                   # The default CA section
 
-  [ default_ca ]
-  dir              = /etc/ssl                                # Where everything SSLish kept
+  [default_ca]
   database         = $dir/CA/index.txt                       # database index file.
   serial           = $dir/CA/serial                          # The current serial number
   crlnumber        = $dir/CA/crlnumber                       # the current crl number
@@ -507,7 +506,7 @@ Perform the following actions on the machine that is on the public internet.
   default_days     = 365                                     # How long to certify for
   default_crl_days = 36500                                   # how long before next CRL
 
-  [ policy_match ]
+  [policy_match]
   countryName             = optional
   stateOrProvinceName     = optional
   organizationName        = supplied
@@ -519,7 +518,7 @@ Perform the following actions on the machine that is on the public internet.
 - Generate a password-protected master key for your Certificate Authority:
 
   ```
-  sudo openssl genrsa -out /etc/ssl/private/ca.key 4096
+  sudo openssl genpkey -algorithm RSA -out /etc/ssl/private/ca.key -aes256
   ```
 
 - Using this, create a CA certificate for the server to sign things with, valid for 10 years:
@@ -606,7 +605,7 @@ Use this method if the user answers yes to the question "are you OK to run OpenS
   sudo openssl ca -updatedb -config /etc/pki/tls/openssl.cnf
   ```
 
-This will update `/etc/ssl/CA/index.txt` so that the certificate is marked as expired (with an `E` in the first column).  If you wish, you may then you generate a new certificate from the same `.csr` file using exactly the same command-line as you used to create it in the first place.
+  This will update `/etc/ssl/CA/index.txt` so that the certificate is marked as expired (with an `E` in the first column).  If you wish, you may then you generate a new certificate from the same `.csr` file using exactly the same command-line as you used to create it in the first place.
 
 ### Installation
 These steps are carried out by the user on the device where they generated their private key.
@@ -621,7 +620,7 @@ These steps are carried out by the user on the device where they generated their
 
 - If the user is running Windows they should double-click the `.pfx` file, select `Current User` in the dialog box that pops up, confirm the file to import, enter the password for the `.pfx` file, allow the wizard to decide where to put the certificates and press `OK` to add the lot.  They _must_ then delete the `.pfx` file from any place it might have been stored (disk, e-mail with attachment, etc.)
 
-- If the user has an Android phone they should go to  `Settings` > `Security and privacy` >  `More security and privacy` > `Encryption and credentials` > `Install a certificate` > `VPN and app user certificate`, select the `.pfx` file, enter the password, and install it.  They _must_ then delete the `.pfx` file from any place it might have been stored (disk, e-mail with attachment, etc.)
+- If the user has an Android phone they should go to  `Settings` > `Security and privacy` >  `More security and privacy` > `Encryption and credentials` > `Install a certificate` > `VPN and app user certificate`, select the `.pfx` file, enter the password, maybe give it a human-readable name, and install it.  They _must_ then delete the `.pfx` file from any place it might have been stored (disk, e-mail with attachment, etc.)
 
 - Open a browser and make an HTTPS connection to the `https://remote_machine`; it should prompt for the certificate to use: chose the one it offers, which will be the one just installed, and then the proper HTML page should appear.
 
@@ -635,7 +634,7 @@ Use this method if the user is not able to generate a private key on their devic
 - Generate a password-protected private key for that user, a certificate signing request to go with it, and then generate the actual certificate, with something like (filling in `devicename` in the `Organisation Name` field and their e-mail address in the `E-mail Address` field of the certificate signing request, leaving the rest empty by just entering `.`):
 
   ```
-  openssl genrsa -des3 -out devicename.key 4096
+  openssl genrsa -des3 -out devicename.key
   openssl req -new -key devicename.key -out remote_machine.devicename.csr
   ```
 
@@ -647,7 +646,7 @@ Use this method if the user is not able to generate a private key on their devic
   openssl pkcs12 -export -out remote_machine.devicename.pfx -inkey devicename.key -in remote_machine.devicename.crt -certfile remote_machine.ca.crt
   ```
 
-- Now you can delete the file `devicename.key`.
+- Now you can delete the file `devicename.key`; when you need to renew the certificate you will need to start this process off again, generating a new private key for this user.
 
 - Send the user the `.pfx` file and, over a separate channel, let them know the password that goes with it; unlike the case where the user generated the private key, this file should be destroyed ASAP after installation (e.g. in all outgoing and incoming e-mails) as it is possible for someone to guess or brute-force the password and obtain the private key from it.
 
